@@ -26,10 +26,7 @@ def getHuPixels (pixels_array, rows, cols, intercept, slope):
     m = np.zeros((rows, cols), np.int16)
     for i in range(rows):
       for j in range(cols):
-        if (pixels_array[i][j] == -2000):
-          m[i][j] = 0
-        else:
-          m[i][j] = pixels_array[i][j] * slope + intercept
+        m[i][j] = pixels_array[i][j] * slope + intercept
     return m
 
 class Dicom:
