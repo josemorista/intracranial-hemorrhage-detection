@@ -2,6 +2,7 @@
 from Dicom import Dicom
 from CvImage import CvImage
 from Segment import Segment
+from geometry import euclidianDistance
 
 from os import listdir
 from os.path import isfile, join
@@ -28,8 +29,8 @@ ventricle.setHUInterval(-15, 15)
 ventricle.setRGB(0,255,0)
 ventricle.setHSVFilter(50,100, 0, 70, 255, 255)
 
-# Ventricle
-brainMass = Segment("brainMass")
+# BrainMass
+brainMass = Segment("BrainMass")
 brainMass.setMaxSegments(1)
 brainMass.setHUInterval(20, 50)
 brainMass.setRGB(255,255,0)
@@ -88,16 +89,21 @@ for filename in dcmFiles:
     # Let's get all we want
     contoursFeatures = image.getContoursFeatures(segment.getMaxSegments())
 
-    segments[key]["extractedFeatures"] = contoursFeatures
-
-    #if key == "Blood":
-      # Discover if isInside Ventricle or BrainMass, get Distance to Bone
-
     # Print some features
     image.gray2bgr()
+
+    maxDistanceToBone = -1
     for i in range(len(contoursFeatures)):
+      if key == "Blood":
+        distanceToBone = euclidianDistance(contoursFeatures[i]["centroid"], segments["Bone"]["extractedFeatures"][0]["centroid"])
+        if distanceToBone > maxDistanceToBone:
+          maxDistanceToBone = distanceToBone
       image.drawCircle(contoursFeatures[i]["centroid"])
       image.drawContours([contoursFeatures[i]["convexHull"]])
+
+    print(maxDistanceToBone)
+
+    segments[key]["extractedFeatures"] = contoursFeatures
 
     image.show()
   
