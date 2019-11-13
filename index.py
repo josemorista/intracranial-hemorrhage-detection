@@ -1,57 +1,39 @@
 # Our imports
-import cv2
-import numpy as np
-from Point import Point
 from Dicom import Dicom
+from CvImage import CvImage
+from Segment import Segment
+
 from os import listdir
 from os.path import isfile, join
-import imutils
-from math import sqrt
 
-def abs (n):
-  if n >= 0:
-    return n
-  return abs((-1 * n))
+# Our interest segments
+# Bone
+bone = Segment("Bone")
+bone.setMaxSegments(1)
+bone.setHUInterval(700, 3000)
+bone.setRGB(0,0,255)
+bone.setHSVFilter(100, 50, 0, 130, 255, 255)
 
-def getCountoursFeatures (cnts, n = 5):
-  contoursFeatures = []
-  for i in range(0, n):
-    if len(cnts) > abs(i):
-      
-      # Compute the center of the contour
-      M = cv2.moments(cnts[i])
-      cx = int(M["m10"] / M["m00"])
-      cy = int(M["m01"] / M["m00"])
+# Blood
+blood = Segment("Blood")
+blood.setMaxSegments(5)
+blood.setHUInterval(60, 100)
+blood.setRGB(255,0,0)
+blood.setHSVFilter(0, 60, 0, 10, 255, 255)
 
-      # Get some basic features
-      perimeter = cv2.arcLength(cnts[i], True)
-      epsilon = 0.1*perimeter
-      approx = cv2.approxPolyDP(cnts[i],epsilon,True)
+# Ventricle
+ventricle = Segment("Ventricle")
+ventricle.setMaxSegments(5)
+ventricle.setHUInterval(-15, 15)
+ventricle.setRGB(0,255,0)
+ventricle.setHSVFilter(50,100, 0, 70, 255, 255)
 
-      # Calculate eccentricity
-      (x, y), (MA, ma), angle = cv2.fitEllipse(cnts[i])
-      a = ma/2
-      b = MA/2
-      
-      if (a > b):
-        eccentricity = sqrt(pow(a, 2)-pow(b, 2))
-        eccentricity = round(eccentricity/a, 2)
-      else:
-        eccentricity = sqrt(pow(b, 2)-pow(a, 2))
-        eccentricity = round(eccentricity/b, 2)
-
-      # Append features
-      contoursFeatures.append({
-        "area": cv2.contourArea(cnts[i]),
-        "perimeter": perimeter,
-        "eccentricity": eccentricity,
-        "centroid": (cx, cy),
-        "approxDp": approx,
-        "convexHull": cv2.convexHull(cnts[i])
-      })
-    else:
-      break
-    return contoursFeatures
+# Ventricle
+brainMass = Segment("brainMass")
+brainMass.setMaxSegments(1)
+brainMass.setHUInterval(20, 50)
+brainMass.setRGB(255,255,0)
+brainMass.setHSVFilter(25, 50, 0, 35, 255, 255)
 
 # Here it comes!
 path = "./data/"
@@ -61,29 +43,61 @@ for filename in dcmFiles:
   ds = Dicom(path+filename)
 
   # Filter by Hounsfield units (HU)
-  image = ds.getFilteredRGB([(-15, 15, (0, 0, 255))])
+  segmentedRGB = ds.getSegmentedRGB([
+    (bone.getLowerHU(), bone.getHigherHU(), bone.getBGR()), 
+    (ventricle.getLowerHU(), ventricle.getHigherHU(), ventricle.getBGR()),
+    (blood.getLowerHU(), blood.getHigherHU(), blood.getBGR()),
+    (brainMass.getLowerHU(), brainMass.getHigherHU(), brainMass.getBGR())
+  ])
   
-  # Open and close morph operations
-  kernel = np.ones((3,3),np.uint8)
-  image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
-  image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+  # Array of segments and their features
 
-  gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-  gray = cv2.bilateralFilter(gray, 11, 17, 17)
-  
-  # Edge algoritm
-  edged = cv2.Canny(gray, 30, 200)
+  segments = {
+    bone.getName():{
+      "segment": bone,
+      "extractedFeatures": {}
+    },
+    brainMass.getName(): {
+      "segment": brainMass,
+      "extractedFeatures": {}
+    },
+    ventricle.getName(): {
+      "segment": ventricle,
+      "extractedFeatures": {}
+    },
+    blood.getName(): {
+      "segment": blood,
+      "extractedFeatures": {}
+    }
+  }
 
-  cnts = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-  cnts = imutils.grab_contours(cnts)
-  
-  # Sort by larger areas
-  cnts = sorted(cnts, key = cv2.contourArea, reverse = True)
-  
-  # Let's get all we want
-  contoursFeatures = getCountoursFeatures(cnts, 5)
+  for key in segments:
+    
+    segment = segments[key]["segment"]
 
-  cv2.circle(image,contoursFeatures[0]["centroid"],1,(0,255,0),2)
-  cv2.drawContours(image, [contoursFeatures[0]["convexHull"]], -1, (0, 255, 0), 2)
-  cv2.imshow("Contours", image)
-  cv2.waitKey(0)
+    image = CvImage(segmentedRGB, segment.getName())
+    
+
+    image.hsvFilter(segment.getLowerHSV(), segment.gethigherHSV())
+
+    # Perform some morph operations
+    image.morphOperations()
+
+    image.show()
+
+    # Let's get all we want
+    contoursFeatures = image.getContoursFeatures(segment.getMaxSegments())
+
+    segments[key]["extractedFeatures"] = contoursFeatures
+
+    #if key == "Blood":
+      # Discover if isInside Ventricle or BrainMass, get Distance to Bone
+
+    # Print some features
+    image.gray2bgr()
+    for i in range(len(contoursFeatures)):
+      image.drawCircle(contoursFeatures[i]["centroid"])
+      image.drawContours([contoursFeatures[i]["convexHull"]])
+
+    image.show()
+  

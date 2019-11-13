@@ -1,10 +1,6 @@
 import numpy as np
 import pydicom as dicom
 
-# thresholds form dycom images
-bt = -1000
-wt = 1400
-
 def getSegmentedPixelColor (value, intervals):
   for i in range(len(intervals)):
     if value >= intervals[i][0] and value <= intervals[i][1]:
@@ -12,7 +8,7 @@ def getSegmentedPixelColor (value, intervals):
   return [0,0,0]
 
 # Linear transformation : from [bt < pxvalue < wt] linear to [0 <pyvalue< 255] !important: has loss of information
-def linearTransform(pxvalue):
+def linearTransform(pxvalue, bt, wt):
     if pxvalue < bt:
         y=0
     elif pxvalue > wt:
@@ -32,11 +28,13 @@ def getHuPixels (pixels_array, rows, cols, intercept, slope):
 class Dicom:
   def __init__(self, src):
     self.__ds = dicom.dcmread(src)
-    self.patientId = self.__ds.PatientID
-    self.cols = self.__ds.Columns
-    self.rows = self.__ds.Rows
-    self.__huPixelsArray = getHuPixels(self.__ds.pixel_array, self.rows, self.cols, self.__ds.RescaleIntercept, self.__ds.RescaleSlope)
+    self.__patientId = self.__ds.PatientID
+    self.__cols = self.__ds.Columns
+    self.__rows = self.__ds.Rows
+    self.__huPixelsArray = getHuPixels(self.__ds.pixel_array, self.__rows, self.__cols, self.__ds.RescaleIntercept, self.__ds.RescaleSlope)
 
+  def getPatientId (self):
+    return self.__patientId
 
   def getPixelsArray (self):
     return self.__huPixelsArray
@@ -44,19 +42,19 @@ class Dicom:
   def getRawPixelsArray (self):
     return self.__ds.pixel_array
 
-  def getLinearRGB (self):
-    image = np.zeros((self.rows, self.cols, 3), np.uint8)
-    for i in range(self.rows):
-      for j in range(self.cols):
-        color = linearTransform(self.getPixelsArray()[i][j])
+  def getLinearRGB (self, bt, wt):
+    image = np.zeros((self.__rows, self.__cols, 3), np.uint8)
+    for i in range(self.__rows):
+      for j in range(self.__cols):
+        color = linearTransform(self.getPixelsArray()[i][j], bt, wt)
         image[i][j] = (color,color,color)
     return image
   
-  #BGR
-  def getFilteredRGB (self, intervals = [(-3000,-1000,[0,0,0]),(-15,15,[255,0,128]),(20,50,[255,0,0]),(60,100,[0,0,255]),(101,3000,[255,255,255])]): # List of intervals to filter
-    image = np.zeros((self.rows, self.cols, 3), np.uint8)
-    for i in range(self.rows):
-      for j in range(self.cols):
+  # Remember, open-cv uses BGR color system
+  def getSegmentedRGB (self, intervals = [(-3000,-1000,[0,0,0]),(-15,15,[255,0,128]),(20,50,[255,0,0]),(60,100,[0,0,255]),(101,3000,[255,255,255])]): # List of intervals to filter
+    image = np.zeros((self.__rows, self.__cols, 3), np.uint8)
+    for i in range(self.__rows):
+      for j in range(self.__cols):
           image[i][j] = getSegmentedPixelColor(self.getPixelsArray()[i][j], intervals)
     return image
 
