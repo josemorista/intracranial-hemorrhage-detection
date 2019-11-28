@@ -85,12 +85,11 @@ class CvImage:
     cnts = sorted(cnts, key = cv2.contourArea, reverse = True)
     return cnts
 
-  def __findContoursFeatures (self, n):
+  def __findContoursFeatures (self, minArea):
     contoursFeatures = []
     cnts = self.getContours()
-    for i in range(0, n):
-      if len(cnts) > abs(i):
-        
+    for i in range(0, len(cnts)):
+      if cv2.contourArea(cnts[i]) >= minArea:
         # Compute the center of the contour
         M = cv2.moments(cnts[i])
         cx = int(M["m10"] / M["m00"])
@@ -119,8 +118,8 @@ class CvImage:
           "perimeter": perimeter,
           "eccentricity": eccentricity,
           "centroid": (cx, cy),
-          "approxDp": approx,
-          "convexHull": cv2.convexHull(cnts[i])
+          "approxDp": np.squeeze(approx),
+          "convexHull": np.squeeze(cv2.convexHull(cnts[i]))
         })
       else:
         break

@@ -6,11 +6,11 @@ class Segment:
   def getName(self):
     return self.__name
 
-  def setMaxSegments(self, max):
-    self.__maxSegments = max
+  def setMinSegmentArea(self, area):
+    self.__minSegmentArea = area
 
-  def getMaxSegments(self):
-    return self.__maxSegments
+  def getMinSegmentArea(self):
+    return self.__minSegmentArea
 
   def setHUInterval(self, lowHU, highHU):
     self.__lowerHU = lowHU
