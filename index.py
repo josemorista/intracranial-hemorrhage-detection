@@ -3,7 +3,7 @@ from Dicom import Dicom
 from CvImage import CvImage
 from Segment import Segment
 from geometry import distanceToPolygon, isPointsInsidePolygon
-
+import pandas as pd
 from os import listdir
 from os.path import isfile, join
 
@@ -36,12 +36,27 @@ brainMass.setHUInterval(20, 50)
 brainMass.setRGB(255,255,0)
 brainMass.setHSVFilter(25, 50, 0, 35, 255, 255)
 
+labels = pd.read_csv('D:/Downloads/stage2train.csv')
+
 # Here it comes!
-path = "./data/"
-dcmFiles = [f for f in listdir(path) if isfile(join(path, f))]
+path = "D:/Downloads/stage2train/"
+dcmFiles = []
+dirFiles = listdir(path)
+i = 0
+while i < len(dirFiles) and i < 1:
+  if isfile(join(path, dirFiles[i])):
+    dcmFiles.append(dirFiles[i])
+  i = i + 1
+
+results = open("./results/results.txt", "a")
 
 for filename in dcmFiles:
   ds = Dicom(path+filename)
+  
+  # Print labels and ID
+  results.write(filename[:-4])
+  for label in ["epidural", "intraparenchymal", "intraventricular", "subarachnoid", "subdural", "any"]:
+    results.write("," + str(labels.loc[labels["ID"] == (filename[:-4]+"_"+label)].values[0][1]))
 
   # Filter by Hounsfield units (HU)
   segmentedRGB = ds.getSegmentedRGB([
@@ -52,7 +67,6 @@ for filename in dcmFiles:
   ])
   
   # Array of segments and their features
-
   segments = {
     bone.getName():{
       "segment": bone,
@@ -89,6 +103,10 @@ for filename in dcmFiles:
     # RGB to see green contour
     image.gray2bgr()
 
+    if (key == "Ventricle" or key == "BrainMass"):
+      for atrib in ["area", "eccentricity"]:
+        results.write("," + str(features[0][atrib]))
+
     for i in range(len(features)):
       # Blood only features
       if key == "Blood":
@@ -111,10 +129,22 @@ for filename in dcmFiles:
         features[i]["isInsideVentricle"] = isInsideVentricle
         features[i]["isInsideBrainMass"] = isInsideBrainMass
         
+        results.write("\n\t")
+        for atrib in ["area", "eccentricity", "distanceToBone", "isInsideVentricle", "isInsideBrainMass"]:
+          if (features[i][atrib] == False or features[i][atrib] == True):
+            if (features[i][atrib] == True):
+              results.write(str(1))
+            else:
+              results.write(str(0))
+          else:
+            results.write(str(features[i][atrib]))
+          if atrib != "isInsideBrainMass":
+             results.write(",")
+        
+
       image.drawCircle(features[i]["centroid"])
       image.drawContours([features[i]["convexHull"]])
 
     segments[key]["extractedFeatures"] = features
-
-    image.show()
-  
+  results.write("\n")
+results.close()
